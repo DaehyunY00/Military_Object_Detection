@@ -1,0 +1,47 @@
+study_name: mad_baseline_comparison
+dataset_yaml: data/processed/yolo_dataset/dataset.yaml
+output_dir: experiments/baseline_comparison
+device: auto
+seed: 42
+seeds: [42]
+
+wandb:
+  # [중요] W&B를 사용하려면 enabled를 true로 바꾸고 entity를 설정하세요.
+  # API key 없이 true로 설정하면 실험이 중단될 수 있습니다.
+  # CLI에서도 제어 가능: python scripts/run_benchmark.py --wandb on/off
+  enabled: false
+  project: military-object-detection
+  group: baseline-comparison
+  tags: [baseline, colab]
+  job_type: detector-benchmark
+  mode: online
+  silent: true
+  # entity: your_wandb_entity
+  # anonymous: allow
+
+train:
+  epochs: 45
+  imgsz: 640
+  batch: 16              # Colab T4 기준. OOM 시 8로 낮추세요 (로컬 로우-메모리 환경은 4)
+  workers: 2             # Colab DataLoader 권장값
+  optimizer: auto
+  lr0: 0.01
+  lrf: 0.01
+  cos_lr: true
+  weight_decay: 0.0005
+  patience: 15
+  close_mosaic: 8
+  fraction: 1.0
+  cache: false           # Drive 접근 속도가 느려 false 권장
+  amp: true              # Mixed Precision (T4 필수)
+  deterministic: true
+
+models:
+  - id: yolov8n
+    weights: yolov8n.pt
+  - id: yolov8s
+    weights: yolov8s.pt
+    train_overrides:
+      batch: 8           # yolov8s는 메모리 더 사용, 배치 낮춤
+  - id: yolo11n
+    weights: yolo11n.pt

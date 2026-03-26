@@ -1,0 +1,14 @@
+dataset_yaml: data/processed/yolo_dataset/dataset.yaml
+output_dir: data/processed/augmented_diffusion
+synthetic_count: 2000
+image_size: 768
+mode: diffusion
+allow_fallback: true
+fallback_mode: procedural
+seed: 42
+diffusion_model_id: stabilityai/stable-diffusion-2-1-base
+prompt_template: high-altitude aerial photography of clouded sky, realistic, high detail
+negative_prompt: aircraft, plane, jet, warplane, helicopter, text, watermark, logo
+guidance_scale: 6.5
+diffusion_steps: 24
+device: auto

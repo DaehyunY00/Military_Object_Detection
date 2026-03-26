@@ -1,0 +1,4 @@
+# Colab 환경 전용 추가 패키지
+# ipykernel, jupyterlab은 Colab에 이미 탑재되어 있으므로 제외
+-r requirements.txt
+wandb>=0.17,<1.0

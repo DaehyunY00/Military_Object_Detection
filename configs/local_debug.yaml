@@ -1,0 +1,32 @@
+study_name: mad_local_debug
+dataset_yaml: data/processed/yolo_dataset/dataset.yaml
+output_dir: artifacts/local_debug
+device: auto
+seed: 42
+seeds: [42]
+
+wandb:
+  enabled: false
+  mode: offline
+  silent: true
+
+train:
+  epochs: 1
+  imgsz: 320
+  batch: 2
+  workers: 0
+  optimizer: auto
+  lr0: 0.01
+  lrf: 0.01
+  cos_lr: false
+  weight_decay: 0.0005
+  patience: 2
+  close_mosaic: 1
+  fraction: 0.05
+  cache: false
+  amp: false
+  deterministic: true
+
+models:
+  - id: yolov8n_debug
+    weights: yolov8n.pt

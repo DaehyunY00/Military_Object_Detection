@@ -1,0 +1,14 @@
+{
+  "status": "completed",
+  "start_time": "2025-11-22T17:19:07.057509",
+  "current_epoch": 5,
+  "total_epochs": 5,
+  "best_map": 0.0,
+  "model_name": "yolov8n.pt",
+  "device": "mps",
+  "batch_size": 4,
+  "image_size": 640,
+  "last_update": "2025-11-26T03:50:54.490408",
+  "progress_percentage": 100.0,
+  "final_map": 0.028831480961816924
+}

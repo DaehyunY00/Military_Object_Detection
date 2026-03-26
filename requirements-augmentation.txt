@@ -1,0 +1,4 @@
+diffusers>=0.30,<0.34
+transformers>=4.44,<5.0
+accelerate>=0.33,<2.0
+safetensors>=0.4,<1.0

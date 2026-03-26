@@ -1,0 +1,49 @@
+# ============================================================
+# Colab T4 / A100 전체 실험용 config
+# GPU: T4 (15 GB) 또는 A100 (40 GB)
+# 예상 소요: T4 기준 모델당 약 25~40분 (20 epochs)
+#
+# 데이터셋 경로는 노트북에서 --dataset-yaml 오버라이드로 주입됩니다.
+# ============================================================
+study_name: mad_colab_full
+dataset_yaml: data/processed/yolo_dataset/dataset.yaml
+output_dir: experiments/colab_full
+device: auto
+seed: 42
+seeds: [42]
+
+wandb:
+  enabled: false          # W&B 사용 시 true로 변경 후 wandb login 먼저 실행
+  project: military-object-detection
+  group: colab-full
+  tags: [colab, full]
+  job_type: detector-benchmark
+  mode: offline
+  silent: true
+
+train:
+  epochs: 20
+  imgsz: 640
+  batch: 16               # T4 기준 최적. OOM 시 8로 낮추세요
+  workers: 2              # Colab DataLoader 권장값
+  optimizer: auto
+  lr0: 0.01
+  lrf: 0.01
+  cos_lr: true
+  weight_decay: 0.0005
+  patience: 8
+  close_mosaic: 5
+  fraction: 1.0           # 전체 데이터 사용 (논문 결과와 비교 가능)
+  cache: false            # Drive 접근 속도가 느려 false 권장
+  amp: true               # Mixed Precision (T4 필수)
+  deterministic: true
+
+models:
+  - id: yolov8n
+    weights: yolov8n.pt
+  - id: yolo11n
+    weights: yolo11n.pt
+  - id: yolov8s
+    weights: yolov8s.pt
+    train_overrides:
+      batch: 8            # yolov8s는 메모리 더 사용, 배치 낮춤

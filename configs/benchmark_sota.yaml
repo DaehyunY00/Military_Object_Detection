@@ -1,0 +1,47 @@
+study_name: mad_sota_candidates
+dataset_yaml: data/processed/yolo_dataset/dataset.yaml
+output_dir: experiments/sota_candidates
+device: auto
+seed: 42
+seeds: [42]
+
+wandb:
+  enabled: false
+  project: military-object-detection
+  group: sota-candidates
+  tags: [sota, full]
+  job_type: detector-benchmark
+  mode: online
+  silent: true
+  # entity: your_wandb_entity
+
+train:
+  epochs: 120
+  imgsz: 1024
+  batch: 6
+  workers: 4
+  optimizer: auto
+  lr0: 0.01
+  lrf: 0.01
+  cos_lr: true
+  weight_decay: 0.0005
+  patience: 40
+  close_mosaic: 15
+  cache: false
+  amp: true
+  deterministic: true
+
+models:
+  - id: yolo11m
+    weights: yolo11m.pt
+  - id: yolo11l
+    weights: yolo11l.pt
+  - id: yolo11x
+    weights: yolo11x.pt
+    train_overrides:
+      batch: 4
+  - id: rtdetr_l
+    weights: rtdetr-l.pt
+    train_overrides:
+      imgsz: 960
+      close_mosaic: 0

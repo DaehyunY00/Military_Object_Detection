@@ -1,0 +1,46 @@
+# ============================================================
+# WARNING: 이 config는 빠른 검증용입니다. 논문 실험에 사용하지 마세요.
+#   - fraction: 0.6  → 전체 데이터의 60%만 사용 (정식 비교 불가)
+#   - epochs: 25     → 정식 baseline(45 epochs)보다 짧음
+# 논문 실험은 benchmark_baseline.yaml 또는 benchmark_sota.yaml을 사용하세요.
+# ============================================================
+study_name: mad_baseline_m4_quick
+dataset_yaml: data/processed/yolo_dataset/dataset.yaml
+output_dir: experiments/baseline_m4_quick
+device: auto
+seed: 42
+seeds: [42]
+
+wandb:
+  enabled: false
+  project: military-object-detection
+  group: baseline-m4-quick
+  tags: [baseline, m4, quick]
+  job_type: detector-benchmark
+  mode: online
+  silent: true
+  # entity: your_wandb_entity
+  # anonymous: allow
+
+train:
+  epochs: 25
+  imgsz: 640
+  batch: 4
+  workers: 2
+  optimizer: auto
+  lr0: 0.01
+  lrf: 0.01
+  cos_lr: true
+  weight_decay: 0.0005
+  patience: 8
+  close_mosaic: 5
+  fraction: 0.6
+  cache: false
+  amp: true
+  deterministic: true
+
+models:
+  - id: yolov8n_baseline
+    weights: yolov8n.pt
+  - id: yolo11n
+    weights: yolo11n.pt

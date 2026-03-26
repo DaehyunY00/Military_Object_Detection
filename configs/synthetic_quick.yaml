@@ -1,0 +1,17 @@
+# ============================================================
+# 합성 데이터 생성 - Colab 빠른 검증용 (procedural 모드)
+# GPU 불필요. 약 500장 생성, 수 분 소요.
+# ============================================================
+dataset_yaml: data/processed/yolo_dataset/dataset.yaml
+output_dir: data/processed/augmented_procedural_quick
+synthetic_count: 500
+image_size: 640
+min_objects_per_image: 1
+max_objects_per_image: 3
+max_crops_per_class: 20
+min_crop_size: 20
+mode: procedural
+allow_fallback: true
+fallback_mode: procedural
+seed: 42
+device: auto

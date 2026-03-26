@@ -1,0 +1,17 @@
+data/
+experiments/
+artifacts/
+outputs/
+logs/
+runs/
+checkpoints/
+
+.ultralytics/
+.matplotlib/
+.ipynb_checkpoints/
+__pycache__/
+*.pyc
+.DS_Store
+
+*.pt
+*.h5

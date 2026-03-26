@@ -1,0 +1,45 @@
+# ============================================================
+# Colab 빠른 파이프라인 검증용 config
+# 훈련 5 epochs + 25% 데이터 → 약 5~10분
+#
+# 사용 목적: 데이터셋·코드 파이프라인 이상 여부 확인
+# 논문 실험에는 colab_full.yaml 또는 benchmark_baseline.yaml 사용
+# ============================================================
+study_name: mad_colab_quick
+dataset_yaml: data/processed/yolo_dataset/dataset.yaml
+output_dir: experiments/colab_quick
+device: auto
+seed: 42
+seeds: [42]
+
+wandb:
+  enabled: false
+  project: military-object-detection
+  group: colab-quick
+  tags: [colab, quick]
+  job_type: detector-benchmark
+  mode: offline
+  silent: true
+
+train:
+  epochs: 5
+  imgsz: 640
+  batch: 16
+  workers: 2
+  optimizer: auto
+  lr0: 0.01
+  lrf: 0.01
+  cos_lr: true
+  weight_decay: 0.0005
+  patience: 5
+  close_mosaic: 2
+  fraction: 0.25          # 전체의 25%만 사용 (빠른 검증 전용)
+  cache: false
+  amp: true
+  deterministic: true
+
+models:
+  - id: yolov8n
+    weights: yolov8n.pt
+  - id: yolo11n
+    weights: yolo11n.pt
