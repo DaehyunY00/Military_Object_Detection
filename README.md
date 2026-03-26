@@ -18,6 +18,7 @@ This implementation pass keeps the existing core package flat and readable, but 
 ├── mad/
 │   ├── runtime.py                  # Colab/workspace detection and path helpers
 │   ├── dataset_builder.py          # CSV -> YOLO conversion + validation
+│   ├── kaggle_dataset.py           # KaggleHub download + ephemeral YOLO prep
 │   ├── benchmark.py                # benchmark runner + study summaries
 │   ├── inference.py                # evaluation and prediction helpers
 │   ├── synthetic_augmentation.py   # optional synthetic augmentation
@@ -57,8 +58,15 @@ Relative dataset and output paths now resolve against `MAD_WORKSPACE_ROOT`.
 
 - Local default: repository root
 - Colab recommendation: `/content/drive/MyDrive/Military_Object_Detection`
+- Raw Kaggle dataset cache: ephemeral local cache via `MAD_DATA_CACHE_ROOT`
 
-That means you can keep code under `/content/Military_Object_Detection` and store datasets, checkpoints, artifacts, and experiment summaries on Google Drive.
+That means you can keep code under `/content/Military_Object_Detection`, store checkpoints/artifacts/experiment summaries on Google Drive, and keep raw Kaggle files off Drive entirely.
+
+Why not true streaming?
+
+- Ultralytics YOLO expects image files and sidecar label files on a local filesystem.
+- KaggleHub outside a Kaggle notebook downloads datasets to a local cache.
+- This repo therefore uses KaggleHub for acquisition, then prepares a YOLO-ready dataset inside an ephemeral local cache such as `/content/.cache/mad` or `/tmp/mad`.
 
 ## Install
 
@@ -81,6 +89,12 @@ python -m pip install -r requirements-augmentation.txt
 ```
 
 Weights & Biases is optional. None of the default Colab configs require it.
+
+Kaggle authentication:
+
+- Public Kaggle datasets may still require Kaggle authentication or consent.
+- In Colab, the easiest path is a `KAGGLE_API_TOKEN` secret.
+- Local fallback: `kagglehub.login()` or a standard Kaggle token file.
 
 ## Quickstart: Colab
 
@@ -111,17 +125,23 @@ Then in Python:
 ```python
 import os
 os.environ["MAD_WORKSPACE_ROOT"] = "/content/drive/MyDrive/Military_Object_Detection"
+os.environ["MAD_DATA_CACHE_ROOT"] = "/content/.cache/mad"
 ```
 
 Prepare dataset:
 
 ```bash
 python scripts/prepare_dataset.py \
-  --workspace-root "$MAD_WORKSPACE_ROOT" \
-  --annotations-csv data/labels_with_split.csv \
-  --images-dir "data/dataset 2" \
-  --output-dir data/processed/yolo_dataset \
+  --source kaggle \
+  --kaggle-dataset-id a2015003713/militaryaircraftdetectiondataset \
+  --cache-root "$MAD_DATA_CACHE_ROOT" \
   --force
+```
+
+Expected default prepared dataset:
+
+```bash
+export DATASET_YAML="$MAD_DATA_CACHE_ROOT/datasets/a2015003713__militaryaircraftdetectiondataset/yolo_dataset/dataset.yaml"
 ```
 
 Quick benchmark:
@@ -129,6 +149,7 @@ Quick benchmark:
 ```bash
 python scripts/benchmark.py \
   --config configs/colab_quick.yaml \
+  --dataset-yaml "$DATASET_YAML" \
   --workspace-root "$MAD_WORKSPACE_ROOT"
 ```
 
@@ -138,7 +159,7 @@ Evaluate the best model:
 python scripts/evaluate.py \
   --workspace-root "$MAD_WORKSPACE_ROOT" \
   --model /path/to/best.pt \
-  --dataset-yaml data/processed/yolo_dataset/dataset.yaml \
+  --dataset-yaml "$DATASET_YAML" \
   --split test
 ```
 
@@ -153,13 +174,19 @@ export MAD_WORKSPACE_ROOT="$(pwd)"
 Smoke-test dataset prep:
 
 ```bash
+export MAD_DATA_CACHE_ROOT="/tmp/mad"
+
 python scripts/prepare_dataset.py \
-  --workspace-root "$MAD_WORKSPACE_ROOT" \
-  --annotations-csv data/labels_with_split.csv \
-  --images-dir "data/dataset 2" \
-  --output-dir data/processed/yolo_dataset_smoke \
-  --force \
+  --source kaggle \
+  --kaggle-dataset-id a2015003713/militaryaircraftdetectiondataset \
+  --cache-root "$MAD_DATA_CACHE_ROOT" \
   --smoke
+```
+
+Prepared dataset path:
+
+```bash
+export DATASET_YAML="$MAD_DATA_CACHE_ROOT/datasets/a2015003713__militaryaircraftdetectiondataset/yolo_dataset/dataset.yaml"
 ```
 
 Local debug benchmark:
@@ -167,6 +194,7 @@ Local debug benchmark:
 ```bash
 python scripts/benchmark.py \
   --config configs/local_debug.yaml \
+  --dataset-yaml "$DATASET_YAML" \
   --workspace-root "$MAD_WORKSPACE_ROOT"
 ```
 
@@ -176,7 +204,7 @@ Evaluate a trained checkpoint:
 python scripts/evaluate.py \
   --workspace-root "$MAD_WORKSPACE_ROOT" \
   --model /path/to/best.pt \
-  --dataset-yaml data/processed/yolo_dataset/dataset.yaml \
+  --dataset-yaml "$DATASET_YAML" \
   --split test
 ```
 
@@ -186,7 +214,7 @@ Run folder or single-image inference:
 python scripts/infer.py \
   --workspace-root "$MAD_WORKSPACE_ROOT" \
   --model /path/to/best.pt \
-  --source data/processed/yolo_dataset/test/images \
+  --source "$(dirname "$DATASET_YAML")/test/images" \
   --output-dir artifacts/inference
 ```
 
@@ -194,22 +222,36 @@ python scripts/infer.py \
 
 `mad.dataset_builder` now supports:
 
+- KaggleHub-first dataset preparation with `--source kaggle`
+- no requirement for `labels_with_split.csv` or `dataset 2/`
+- ephemeral local caching for raw Kaggle files and YOLO-ready prepared splits
 - workspace-root-aware paths
 - deterministic smoke-test subsets with `--smoke` or `--max-images-per-split`
 - dataset validation after conversion
 - `dataset.yaml`, `build_summary.json`, `validation_summary.json`
 - `resolved_config.yaml`, `runtime.json`, and `seed_plan.json`
+- legacy CSV/image-folder conversion remains available via `--source manual`
 
 Example:
 
 ```bash
 python scripts/prepare_dataset.py \
+  --source kaggle \
+  --kaggle-dataset-id a2015003713/militaryaircraftdetectiondataset \
+  --cache-root "${MAD_DATA_CACHE_ROOT:-/content/.cache/mad}" \
+  --smoke
+```
+
+Legacy manual fallback:
+
+```bash
+python scripts/prepare_dataset.py \
+  --source manual \
   --workspace-root "$MAD_WORKSPACE_ROOT" \
   --annotations-csv data/labels_with_split.csv \
   --images-dir "data/dataset 2" \
   --output-dir data/processed/yolo_dataset \
-  --force \
-  --smoke
+  --force
 ```
 
 ## Benchmarking

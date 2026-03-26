@@ -10,6 +10,7 @@ from typing import Any
 
 import pandas as pd
 
+from mad.kaggle_dataset import DEFAULT_KAGGLE_DATASET_ID, default_prepared_dataset_yaml
 from mad.runtime import (
     collect_runtime_metadata,
     ensure_result_layout,
@@ -551,6 +552,14 @@ def run_benchmark(config_path: Path, overrides: dict[str, Any] | None = None) ->
     cfg = _apply_overrides(read_yaml(config_path), overrides)
     cfg, workspace_root = _resolve_benchmark_paths(cfg)
     dataset_yaml = Path(cfg["dataset_yaml"]).resolve()
+    if not dataset_yaml.exists():
+        fallback_dataset_yaml = default_prepared_dataset_yaml(
+            DEFAULT_KAGGLE_DATASET_ID,
+            cache_root=os.environ.get("MAD_DATA_CACHE_ROOT"),
+        ).resolve()
+        if fallback_dataset_yaml.exists():
+            dataset_yaml = fallback_dataset_yaml
+            cfg["dataset_yaml"] = str(fallback_dataset_yaml)
     if not dataset_yaml.exists():
         raise FileNotFoundError(f"dataset_yaml not found: {dataset_yaml}")
 

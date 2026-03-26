@@ -2,6 +2,7 @@
 
 __all__ = [
     "dataset_builder",
+    "kaggle_dataset",
     "benchmark",
     "synthetic_augmentation",
     "inference",

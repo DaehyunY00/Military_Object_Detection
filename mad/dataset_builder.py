@@ -10,10 +10,16 @@ from typing import Iterable
 import pandas as pd
 from tqdm import tqdm
 
+from mad.kaggle_dataset import (
+    DEFAULT_KAGGLE_DATASET_ID,
+    KaggleYOLOBuildConfig,
+    build_kaggle_yolo_dataset,
+)
 from mad.runtime import collect_runtime_metadata, get_workspace_root, resolve_workspace_path
 from mad.utils import ensure_dir, read_yaml, seed_everything, sorted_name_values, write_json, write_yaml
 
 VALID_IMAGE_SUFFIXES = (".jpg", ".jpeg", ".png", ".bmp", ".webp", ".tif", ".tiff")
+SOURCE_CHOICES = ("kaggle", "manual")
 SPLIT_MAP = {
     "train": "train",
     "training": "train",
@@ -337,11 +343,17 @@ def build_yolo_dataset(config: DatasetBuildConfig) -> dict:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Build YOLO dataset from labels_with_split.csv")
+    parser = argparse.ArgumentParser(description="Prepare a YOLO dataset from KaggleHub or legacy local files")
+    parser.add_argument("--source", type=str, choices=SOURCE_CHOICES, default="kaggle")
     parser.add_argument("--annotations-csv", type=Path, default=Path("data/labels_with_split.csv"))
     parser.add_argument("--images-dir", type=Path, default=Path("data/dataset 2"))
-    parser.add_argument("--output-dir", type=Path, default=Path("data/processed/yolo_dataset"))
-    parser.add_argument("--workspace-root", type=Path, default=None, help="Resolve relative data/output paths against this workspace root")
+    parser.add_argument("--output-dir", type=Path, default=None)
+    parser.add_argument("--workspace-root", type=Path, default=None, help="Resolve relative manual data paths against this workspace root")
+    parser.add_argument("--kaggle-dataset-id", type=str, default=DEFAULT_KAGGLE_DATASET_ID)
+    parser.add_argument("--cache-root", type=Path, default=None, help="Ephemeral local cache root for Kaggle downloads/prepared files")
+    parser.add_argument("--raw-dataset-dir", type=Path, default=None, help="Use an already-downloaded Kaggle dataset directory")
+    parser.add_argument("--force-download", action="store_true", help="Force a fresh Kaggle download into the ephemeral cache")
+    parser.add_argument("--class-names-path", type=Path, default=None, help="Optional YAML/TXT class names for Kaggle-prepared datasets")
     parser.add_argument("--force", action="store_true", help="Delete output directory before rebuilding")
     parser.add_argument("--symlink", action="store_true", help="Use symlink instead of copying images")
     parser.add_argument("--smoke", action="store_true", help="Build a small deterministic subset for quick validation")
@@ -358,25 +370,46 @@ def main() -> None:
     if args.smoke and max_images_per_split is None:
         max_images_per_split = 32
 
-    result = build_yolo_dataset(
-        DatasetBuildConfig(
-            annotations_csv=args.annotations_csv,
-            images_dir=args.images_dir,
-            output_dir=args.output_dir,
-            force=args.force,
-            symlink=args.symlink,
-            workspace_root=args.workspace_root,
-            max_images_per_split=max_images_per_split,
-            shuffle=args.shuffle,
-            seed=args.seed,
-            validate=not args.skip_validation,
+    if args.source == "manual":
+        output_dir = args.output_dir if args.output_dir is not None else Path("data/processed/yolo_dataset")
+        result = build_yolo_dataset(
+            DatasetBuildConfig(
+                annotations_csv=args.annotations_csv,
+                images_dir=args.images_dir,
+                output_dir=output_dir,
+                force=args.force,
+                symlink=args.symlink,
+                workspace_root=args.workspace_root,
+                max_images_per_split=max_images_per_split,
+                shuffle=args.shuffle,
+                seed=args.seed,
+                validate=not args.skip_validation,
+            )
         )
-    )
+    else:
+        result = build_kaggle_yolo_dataset(
+            KaggleYOLOBuildConfig(
+                dataset_id=args.kaggle_dataset_id,
+                output_dir=args.output_dir,
+                cache_root=args.cache_root,
+                raw_dataset_dir=args.raw_dataset_dir,
+                force_download=args.force_download,
+                force_rebuild=args.force,
+                validate=not args.skip_validation,
+                max_images_per_split=max_images_per_split,
+                seed=args.seed,
+                class_names_path=args.class_names_path,
+            )
+        )
+
     print("Dataset ready")
     print(f"- dataset_yaml: {result['dataset_yaml']}")
     print(f"- class_count: {result['class_count']}")
-    print(f"- workspace_root: {result['workspace_root']}")
     print(f"- processed_images: {result['stats']['processed_images']}")
+    if "workspace_root" in result:
+        print(f"- workspace_root: {result['workspace_root']}")
+    if "raw_dataset_dir" in result:
+        print(f"- raw_dataset_dir: {result['raw_dataset_dir']}")
     if result.get("validation") is not None:
         print(f"- validation_valid: {result['validation']['valid']}")
 

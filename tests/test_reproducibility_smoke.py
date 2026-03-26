@@ -11,6 +11,7 @@ import pandas as pd
 
 from mad.benchmark import write_benchmark_artifacts
 from mad.dataset_builder import validate_yolo_dataset
+from mad.kaggle_dataset import KaggleYOLOBuildConfig, build_kaggle_yolo_dataset
 from mad.runtime import ensure_result_layout
 from mad.utils import normalize_seeds, read_json, read_yaml, seed_everything
 
@@ -154,6 +155,47 @@ class ReproducibilitySmokeTests(unittest.TestCase):
             resolved_cfg = read_yaml(Path(study_layout["metadata_dir"]) / "resolved_config.yaml")
             self.assertEqual(run_summary["primary_metric"], "test_map50_95")
             self.assertEqual(resolved_cfg["study_name"], "smoke")
+
+    def test_kaggle_layout_can_be_prepared_without_network(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            raw_root = root / "downloaded_dataset"
+            images_root = raw_root / "images"
+            labels_root = raw_root / "annotations" / "yolo"
+
+            for split, rel_name, class_id in (
+                ("train", "a/train_sample", 0),
+                ("val", "b/val_sample", 1),
+                ("test", "c/test_sample", 1),
+            ):
+                image_path = images_root / f"{rel_name}.jpg"
+                label_path = labels_root / split / f"{rel_name}.txt"
+                image_path.parent.mkdir(parents=True, exist_ok=True)
+                label_path.parent.mkdir(parents=True, exist_ok=True)
+                image_path.write_bytes(b"jpg")
+                label_path.write_text(f"{class_id} 0.5 0.5 0.25 0.25\n", encoding="utf-8")
+
+            prepared_root = root / "prepared_dataset"
+            result = build_kaggle_yolo_dataset(
+                KaggleYOLOBuildConfig(
+                    dataset_id="fake-owner/fake-dataset",
+                    raw_dataset_dir=raw_root,
+                    output_dir=prepared_root,
+                    use_hf_probe=False,
+                    validate=True,
+                )
+            )
+
+            dataset_yaml = Path(result["dataset_yaml"])
+            dataset_cfg = read_yaml(dataset_yaml)
+            self.assertTrue(dataset_yaml.exists())
+            self.assertEqual(dataset_cfg["nc"], 2)
+            self.assertEqual(dataset_cfg["names"], ["class_000", "class_001"])
+            self.assertTrue((prepared_root / "train" / "images").exists())
+            self.assertTrue((prepared_root / "train" / "labels").exists())
+            self.assertEqual(result["stats"]["split_image_count"]["train"], 1)
+            self.assertEqual(result["stats"]["processed_images"], 3)
+            self.assertTrue(result["validation"]["valid"])
 
 
 if __name__ == "__main__":

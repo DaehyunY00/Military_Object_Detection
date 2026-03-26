@@ -2,6 +2,9 @@
 
 > 최종 업데이트: 2026-03-26 (Colab 환경 최적화)
 > **Google Colab 우선** 환경을 기준으로 작성되었습니다.
+>
+> 현재 기본 데이터셋 경로는 **KaggleHub** 입니다.  
+> `labels_with_split.csv` 와 `dataset 2/` 업로드 방식은 이제 **legacy fallback** 으로만 유지됩니다.
 
 ---
 
@@ -26,7 +29,8 @@
 
 ```
 [ ] Google Drive에 Military_Object_Detection/ 폴더가 준비되어 있다
-[ ] Drive/data/ 에 labels_with_split.csv 와 dataset 2/ 가 업로드되어 있다
+[ ] Colab 또는 로컬 환경에 Kaggle 인증 정보가 준비되어 있다
+[ ] MAD_DATA_CACHE_ROOT (예: /content/.cache/mad) 를 ephemeral cache 로 사용한다
 [ ] Colab 런타임 유형이 GPU로 설정되어 있다
       메뉴 → 런타임 → 런타임 유형 변경 → T4 GPU 선택
 [ ] 논문 실험에는 colab_quick.yaml (fraction=0.25) 을 사용하지 않는다
@@ -87,31 +91,34 @@ setup_colab_env(REPO_DIR, WORKSPACE_ROOT)
 
 ## 3. 데이터셋 준비
 
-### 3-1. Drive에 파일 업로드
+### 3-1. 기본 경로: KaggleHub + ephemeral cache
 
-Google Drive의 `Military_Object_Detection/data/` 폴더 아래에 업로드:
-- `labels_with_split.csv` — 어노테이션 CSV
-- `dataset 2/` — 이미지 디렉토리 (공백 포함 이름 유의)
+YOLO/Ultralytics는 학습 시 이미지 파일과 라벨 파일을 로컬 파일시스템에서 읽어야 하므로,  
+이 저장소는 KaggleHub에서 원본 데이터를 내려받은 뒤 `/content/.cache/mad` 또는 `/tmp/mad` 같은  
+**ephemeral local cache** 안에 학습용 YOLO 데이터셋을 준비합니다.
+
+- 원본 raw dataset을 Google Drive에 보관할 필요가 없습니다
+- 런타임이 재시작되면 raw cache는 다시 준비해야 할 수 있습니다
+- 체크포인트, 실험 결과, 요약표만 Drive에 보관하면 됩니다
 
 ### 3-2. 노트북 실행 (`01_prepare_dataset.ipynb`)
 
-파라미터 셀에서 경로 확인 후 모든 셀 실행.
+파라미터 셀에서 `KAGGLE_DATASET_ID`, `CACHE_ROOT` 만 확인한 뒤 모든 셀을 실행합니다.
 
 ### 3-3. Colab 셀에서 직접 실행
 
 ```python
 # 03_run_benchmark.ipynb 또는 임의 노트북에서 직접 호출 가능
-from mad.dataset_builder import DatasetBuildConfig, build_yolo_dataset
+from mad.kaggle_dataset import KaggleYOLOBuildConfig, build_kaggle_yolo_dataset
 from pathlib import Path
 
 WORKSPACE_ROOT = Path('/content/drive/MyDrive/Military_Object_Detection')
+CACHE_ROOT = Path('/content/.cache/mad')
 
-result = build_yolo_dataset(
-    DatasetBuildConfig(
-        annotations_csv=WORKSPACE_ROOT / 'data' / 'labels_with_split.csv',
-        images_dir=WORKSPACE_ROOT / 'data' / 'dataset 2',
-        output_dir=WORKSPACE_ROOT / 'data' / 'processed' / 'yolo_dataset',
-        workspace_root=WORKSPACE_ROOT,
+result = build_kaggle_yolo_dataset(
+    KaggleYOLOBuildConfig(
+        dataset_id='a2015003713/militaryaircraftdetectiondataset',
+        cache_root=CACHE_ROOT,
         validate=True,
     )
 )
@@ -123,10 +130,16 @@ print(result['dataset_yaml'])
 ```bash
 !cd /content/Military_Object_Detection && \
   python -m mad.dataset_builder \
-    --annotations-csv "$MAD_WORKSPACE_ROOT/data/labels_with_split.csv" \
-    --images-dir "$MAD_WORKSPACE_ROOT/data/dataset 2" \
-    --output-dir "$MAD_WORKSPACE_ROOT/data/processed/yolo_dataset" \
-    --workspace-root "$MAD_WORKSPACE_ROOT"
+    --source kaggle \
+    --kaggle-dataset-id a2015003713/militaryaircraftdetectiondataset \
+    --cache-root "${MAD_DATA_CACHE_ROOT:-/content/.cache/mad}" \
+    --force
+```
+
+준비 완료 후:
+
+```bash
+export DATASET_YAML="${MAD_DATA_CACHE_ROOT:-/content/.cache/mad}/datasets/a2015003713__militaryaircraftdetectiondataset/yolo_dataset/dataset.yaml"
 ```
 
 ---
@@ -165,7 +178,7 @@ CONFIG_PATH = REPO_DIR / 'configs' / 'benchmark_baseline.yaml'
 !cd /content/Military_Object_Detection && \
   python scripts/run_benchmark.py \
     --config configs/colab_full.yaml \
-    --dataset-yaml "$MAD_WORKSPACE_ROOT/data/processed/yolo_dataset/dataset.yaml" \
+    --dataset-yaml "$DATASET_YAML" \
     --output-dir "$MAD_WORKSPACE_ROOT/experiments/colab_full" \
     --device cuda \
     --wandb off
@@ -174,7 +187,7 @@ CONFIG_PATH = REPO_DIR / 'configs' / 'benchmark_baseline.yaml'
 !cd /content/Military_Object_Detection && \
   python scripts/run_benchmark.py \
     --config configs/colab_full.yaml \
-    --dataset-yaml "$MAD_WORKSPACE_ROOT/data/processed/yolo_dataset/dataset.yaml" \
+    --dataset-yaml "$DATASET_YAML" \
     --output-dir "$MAD_WORKSPACE_ROOT/experiments/colab_full" \
     --models yolov8n yolo11n
 
@@ -182,7 +195,7 @@ CONFIG_PATH = REPO_DIR / 'configs' / 'benchmark_baseline.yaml'
 !cd /content/Military_Object_Detection && \
   python scripts/run_benchmark.py \
     --config configs/colab_full.yaml \
-    --dataset-yaml "$MAD_WORKSPACE_ROOT/data/processed/yolo_dataset/dataset.yaml" \
+    --dataset-yaml "$DATASET_YAML" \
     --epochs 30 --batch 8
 ```
 
@@ -220,7 +233,7 @@ print(summary)
 # config 수정 또는 --wandb on 옵션 추가
 !python scripts/run_benchmark.py \
     --config configs/colab_full.yaml \
-    --dataset-yaml "$MAD_WORKSPACE_ROOT/data/processed/yolo_dataset/dataset.yaml" \
+    --dataset-yaml "$DATASET_YAML" \
     --wandb on
 ```
 
@@ -250,7 +263,7 @@ SYNTHETIC_COUNT = 500            # 생성할 이미지 수
 # Procedural 모드 (GPU 불필요)
 !cd /content/Military_Object_Detection && \
   python scripts/run_synthetic_augmentation.py \
-    --dataset-yaml "$MAD_WORKSPACE_ROOT/data/processed/yolo_dataset/dataset.yaml" \
+    --dataset-yaml "$DATASET_YAML" \
     --output-dir "$MAD_WORKSPACE_ROOT/data/processed/augmented_procedural" \
     --mode procedural \
     --synthetic-count 500 \
@@ -260,7 +273,7 @@ SYNTHETIC_COUNT = 500            # 생성할 이미지 수
 !pip install -q -r requirements-augmentation.txt  # 최초 1회
 !cd /content/Military_Object_Detection && \
   python scripts/run_synthetic_augmentation.py \
-    --dataset-yaml "$MAD_WORKSPACE_ROOT/data/processed/yolo_dataset/dataset.yaml" \
+    --dataset-yaml "$DATASET_YAML" \
     --output-dir "$MAD_WORKSPACE_ROOT/data/processed/augmented_diffusion" \
     --config configs/synthetic_diffusion.yaml \
     --seed 42
@@ -302,7 +315,7 @@ print(f"dataset_yaml: {meta['output_dataset_yaml']}")
 # Colab 셀에서 실행
 !cd /content/Military_Object_Detection && \
   python scripts/run_full_study.py \
-    --dataset-yaml "$MAD_WORKSPACE_ROOT/data/processed/yolo_dataset/dataset.yaml" \
+    --dataset-yaml "$DATASET_YAML" \
     --benchmark-config configs/colab_full.yaml \
     --synthetic-count 500 \
     --synthetic-mode procedural
@@ -310,7 +323,7 @@ print(f"dataset_yaml: {meta['output_dataset_yaml']}")
 # Diffusion 모드 (GPU T4 이상 필요)
 !cd /content/Military_Object_Detection && \
   python scripts/run_full_study.py \
-    --dataset-yaml "$MAD_WORKSPACE_ROOT/data/processed/yolo_dataset/dataset.yaml" \
+    --dataset-yaml "$DATASET_YAML" \
     --benchmark-config configs/colab_full.yaml \
     --synthetic-count 2000 \
     --synthetic-mode diffusion
@@ -328,7 +341,7 @@ print(f"dataset_yaml: {meta['output_dataset_yaml']}")
 !cd /content/Military_Object_Detection && \
   python -m mad.inference eval \
     --model "$MAD_WORKSPACE_ROOT/experiments/colab_full/latest/runs/<RUN_NAME>/weights/best.pt" \
-    --dataset-yaml "$MAD_WORKSPACE_ROOT/data/processed/yolo_dataset/dataset.yaml" \
+    --dataset-yaml "$DATASET_YAML" \
     --split test \
     --output-dir "$MAD_WORKSPACE_ROOT/artifacts/evaluation" \
     --workspace-root "$MAD_WORKSPACE_ROOT"
@@ -548,7 +561,7 @@ setup_colab_env(REPO_DIR, WORKSPACE_ROOT)
 `01_prepare_dataset.ipynb` 를 먼저 실행했는지 확인:
 ```python
 from mad.colab_utils import check_dataset
-DATASET_YAML = '/content/drive/MyDrive/Military_Object_Detection/data/processed/yolo_dataset/dataset.yaml'
+DATASET_YAML = '$DATASET_YAML'
 check_dataset(DATASET_YAML)
 ```
 

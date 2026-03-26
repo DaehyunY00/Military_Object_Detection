@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import platform
 import sys
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -15,6 +16,7 @@ except Exception:  # pragma: no cover
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_COLAB_WORKSPACE_NAME = "Military_Object_Detection"
 DEFAULT_COLAB_DRIVE_ROOT = Path("/content/drive/MyDrive")
+DEFAULT_COLAB_CACHE_ROOT = Path("/content/.cache/mad")
 
 
 def is_colab_runtime() -> bool:
@@ -81,6 +83,27 @@ def ensure_workspace_layout(explicit: str | Path | None = None) -> dict[str, str
         "logs_root": _ensure_dir(workspace_root / "logs"),
     }
     return {key: str(value.resolve()) for key, value in layout.items()}
+
+
+def get_data_cache_root(explicit: str | Path | None = None) -> Path:
+    if explicit is not None:
+        return Path(explicit).expanduser().resolve()
+
+    env_value = os.environ.get("MAD_DATA_CACHE_ROOT")
+    if env_value:
+        return Path(env_value).expanduser().resolve()
+
+    if is_colab_runtime():
+        return DEFAULT_COLAB_CACHE_ROOT.resolve()
+
+    return (Path(tempfile.gettempdir()) / "mad").resolve()
+
+
+def configure_cache_env(explicit: str | Path | None = None) -> Path:
+    cache_root = get_data_cache_root(explicit)
+    os.environ["MAD_DATA_CACHE_ROOT"] = str(cache_root)
+    _ensure_dir(cache_root)
+    return cache_root
 
 
 def ensure_result_layout(base_dir: str | Path, study_id: str | None = None) -> dict[str, str]:

@@ -15,6 +15,7 @@ from typing import Any
 DEFAULT_REPO_DIR = Path("/content/Military_Object_Detection")
 DEFAULT_DRIVE_ROOT = Path("/content/drive/MyDrive")
 DEFAULT_WORKSPACE_NAME = "Military_Object_Detection"
+DEFAULT_CACHE_ROOT = Path("/content/.cache/mad")
 
 
 def setup_colab_env(
@@ -47,6 +48,7 @@ def setup_colab_env(
         Path(workspace_root) if workspace_root
         else DEFAULT_DRIVE_ROOT / DEFAULT_WORKSPACE_NAME
     )
+    cache_root = Path(os.environ.get("MAD_DATA_CACHE_ROOT", str(DEFAULT_CACHE_ROOT)))
 
     # ── 1. sys.path / cwd ──────────────────────────────────────────────────
     if not repo_dir.exists():
@@ -61,6 +63,8 @@ def setup_colab_env(
 
     # ── 2. MAD_WORKSPACE_ROOT ─────────────────────────────────────────────
     os.environ["MAD_WORKSPACE_ROOT"] = str(workspace_root)
+    os.environ.setdefault("MAD_DATA_CACHE_ROOT", str(cache_root))
+    cache_root.mkdir(parents=True, exist_ok=True)
 
     # ── 3. Ultralytics / Matplotlib 캐시 고정 ─────────────────────────────
     _ultr_dir = repo_dir / ".ultralytics"
@@ -72,9 +76,9 @@ def setup_colab_env(
     os.environ.setdefault("MPLCONFIGDIR", str(_mpl_dir))
 
     if verbose:
-        _print_env_summary(repo_dir, workspace_root)
+        _print_env_summary(repo_dir, workspace_root, cache_root)
 
-    return {"repo_dir": repo_dir, "workspace_root": workspace_root}
+    return {"repo_dir": repo_dir, "workspace_root": workspace_root, "cache_root": cache_root}
 
 
 def check_gpu(require: bool = False) -> dict[str, Any]:
@@ -143,7 +147,7 @@ def check_dataset(dataset_yaml: str | Path) -> bool:
     return True
 
 
-def _print_env_summary(repo_dir: Path, workspace_root: Path) -> None:
+def _print_env_summary(repo_dir: Path, workspace_root: Path, cache_root: Path) -> None:
     try:
         import torch
         torch_ver = torch.__version__
@@ -163,6 +167,7 @@ def _print_env_summary(repo_dir: Path, workspace_root: Path) -> None:
     print("=" * 55)
     print(f"  repo_dir       : {repo_dir}")
     print(f"  workspace_root : {workspace_root}")
+    print(f"  cache_root     : {cache_root}")
     print(f"  cwd            : {os.getcwd()}")
     print(f"  torch          : {torch_ver} ({cuda_info})")
     print(f"  ultralytics    : {ultr_ver}")

@@ -9,6 +9,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from mad.benchmark import run_benchmark
 from mad.dataset_builder import DatasetBuildConfig, build_yolo_dataset
+from mad.kaggle_dataset import (
+    DEFAULT_KAGGLE_DATASET_ID,
+    KaggleYOLOBuildConfig,
+    build_kaggle_yolo_dataset,
+    default_prepared_dataset_yaml,
+)
 from mad.runtime import resolve_workspace_path
 from mad.synthetic_augmentation import SyntheticConfig, generate_augmented_dataset
 from mad.utils import ensure_dir, read_yaml, timestamp, write_yaml
@@ -16,10 +22,16 @@ from mad.utils import ensure_dir, read_yaml, timestamp, write_yaml
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run full study: base benchmark + diffusion augmentation benchmark")
-    parser.add_argument("--dataset-yaml", type=Path, default=Path("data/processed/yolo_dataset/dataset.yaml"))
+    parser.add_argument("--dataset-yaml", type=Path, default=None)
     parser.add_argument("--benchmark-config", type=Path, default=Path("configs/benchmark_sota.yaml"))
     parser.add_argument("--workspace-root", type=Path, default=None)
     parser.add_argument("--build-dataset-if-missing", action="store_true")
+    parser.add_argument("--dataset-source", choices=["kaggle", "manual"], default="kaggle")
+    parser.add_argument("--kaggle-dataset-id", type=str, default=DEFAULT_KAGGLE_DATASET_ID)
+    parser.add_argument("--cache-root", type=Path, default=None)
+    parser.add_argument("--raw-dataset-dir", type=Path, default=None)
+    parser.add_argument("--force-download", action="store_true")
+    parser.add_argument("--class-names-path", type=Path, default=None)
     parser.add_argument("--annotations-csv", type=Path, default=Path("data/labels_with_split.csv"))
     parser.add_argument("--images-dir", type=Path, default=Path("data/dataset 2"))
     parser.add_argument("--synthetic-count", type=int, default=2000)
@@ -32,22 +44,40 @@ def parse_args() -> argparse.Namespace:
 
 
 def _ensure_dataset(dataset_yaml: Path, args: argparse.Namespace) -> Path:
-    dataset_yaml = resolve_workspace_path(dataset_yaml, args.workspace_root)
+    dataset_yaml = resolve_workspace_path(dataset_yaml, args.workspace_root) if dataset_yaml is not None else default_prepared_dataset_yaml(
+        args.kaggle_dataset_id,
+        cache_root=args.cache_root,
+    )
     if dataset_yaml.exists():
         return dataset_yaml
     if not args.build_dataset_if_missing:
         raise FileNotFoundError(f"dataset_yaml not found: {dataset_yaml}. Use --build-dataset-if-missing.")
 
-    result = build_yolo_dataset(
-        DatasetBuildConfig(
-            annotations_csv=args.annotations_csv,
-            images_dir=args.images_dir,
-            output_dir=dataset_yaml.parent,
-            force=False,
-            symlink=False,
-            workspace_root=args.workspace_root,
+    if args.dataset_source == "manual":
+        result = build_yolo_dataset(
+            DatasetBuildConfig(
+                annotations_csv=args.annotations_csv,
+                images_dir=args.images_dir,
+                output_dir=dataset_yaml.parent,
+                force=False,
+                symlink=False,
+                workspace_root=args.workspace_root,
+            )
         )
-    )
+    else:
+        result = build_kaggle_yolo_dataset(
+            KaggleYOLOBuildConfig(
+                dataset_id=args.kaggle_dataset_id,
+                output_dir=dataset_yaml.parent,
+                cache_root=args.cache_root,
+                raw_dataset_dir=args.raw_dataset_dir,
+                force_download=args.force_download,
+                force_rebuild=False,
+                validate=True,
+                seed=42,
+                class_names_path=args.class_names_path,
+            )
+        )
     return Path(result["dataset_yaml"])
 
 
